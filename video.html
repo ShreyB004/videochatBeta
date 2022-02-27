@@ -1,0 +1,90 @@
+<html>
+   <head>
+      <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+   </head>
+   <style>
+      video {
+      background-color: #ddd;
+      border-radius: 7px;
+      margin: 10px 0px 0px 10px;
+      width: 320px;
+      height: 240px;
+      }
+      button {
+      margin: 5px 0px 0px 10px !important;
+      width: 654px;
+      }
+   </style>
+   <body onload="showMyFace()">
+      <video id="yourVideo" autoplay muted playsinline></video>
+      <video id="friendsVideo" autoplay playsinline></video>
+      <br />
+      <button onclick="showFriendsFace()" type="button" class="btn btn-primary btn-lg"><span class="glyphicon glyphicon-facetime-video" aria-hidden="true"></span> Call</button>
+    <script src="https://www.gstatic.com/firebasejs/8.2.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.2.1/firebase-database.js"></script>
+      <script>
+         //Create an account on Firebase, and use the credentials they give you in place of the following
+         var config = {
+         	apiKey: "AIzaSyAoXTA3D0Z4WloDHJE5-5fmE8sGkTEzjNs",
+         	authDomain: "mesmerizing-app-307511.firebaseapp.com",
+         	databaseURL: "https://mesmerizing-app-307511-default-rtdb.asia-southeast1.firebasedatabase.app",
+         	projectId: "mesmerizing-app-307511",
+         	storageBucket: "mesmerizing-app-307511.appspot.com",
+         	messagingSenderId: "367000966824",
+         	appId: "1:367000966824:web:bc7acbfada3c3f0b06149d",
+         	measurementId: "G-3VP1F9CGQX"
+         };
+         firebase.initializeApp(config);
+         
+         var database = firebase.database();
+         var yourVideo = document.getElementById("yourVideo");
+         var friendsVideo = document.getElementById("friendsVideo");
+         var yourId = Math.floor(Math.random()*1000000000);
+         //Create an account on Viagenie (http://numb.viagenie.ca/), and replace {'urls': 'turn:numb.viagenie.ca','credential': 'websitebeaver','username': 'websitebeaver@email.com'} with the information from your account
+         var servers = {'iceServers': [{'urls': 'stun:stun.services.mozilla.com'}, {'urls': 'stun:stun.l.google.com:19302'}, {'urls': 'turn:numb.viagenie.ca','credential': 'beaver','username': 'webrtc.websitebeaver@gmail.com'}]};
+
+         var pc = new RTCPeerConnection(servers);
+         
+         pc.onicecandidate = (event => event.candidate?sendMessage(yourId, JSON.stringify({'ice': event.candidate})):console.log("Sent All Ice") );
+         
+         pc.onaddstream = (event => friendsVideo.srcObject = event.stream);
+         
+         function sendMessage(senderId, data) {
+             var msg = database.ref("users").push({ sender: senderId, message: data });
+             msg.remove();
+         }
+         
+         database.ref("users").on('child_added', readMessage);
+         
+         function readMessage(data) {
+             var msg = JSON.parse(data.val().message);
+             var sender = data.val().sender;
+             if (sender != yourId) {
+                 if (msg.ice != undefined)
+                     pc.addIceCandidate(new RTCIceCandidate(msg.ice));
+                 else if (msg.sdp.type == "offer")
+                     pc.setRemoteDescription(new RTCSessionDescription(msg.sdp))
+                       .then(() => pc.createAnswer())
+                       .then(answer => pc.setLocalDescription(answer))
+                       .then(() => sendMessage(yourId, JSON.stringify({'sdp': pc.localDescription})));
+                 else if (msg.sdp.type == "answer")
+                     pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+             }
+         };
+         
+         
+         function showMyFace() {
+           navigator.mediaDevices.getUserMedia({audio:true, video:true})
+             .then(stream => yourVideo.srcObject = stream)
+             .then(stream => pc.addStream(stream));
+         }
+         
+         function showFriendsFace() {
+           pc.createOffer()
+             .then(offer => pc.setLocalDescription(offer) )
+             .then(() => sendMessage(yourId, JSON.stringify({'sdp': pc.localDescription})) );
+         }
+           	
+      </script>
+   </body>
+</html>
